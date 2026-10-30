@@ -29,3 +29,22 @@ The goal is to take the guesswork out of online clothes shopping. Instead of rel
 | Infrastructure | Modal (GPU inference), Supabase (auth, database, file storage) |
 | Computer vision & ML | OpenCV, MediaPipe (pose detection, background segmentation), SMPL-X, PyTorch |
 | 3D garment pipeline | Blender, GLB/glTF, Linear Blend Skinning, collision correction |
+
+## Docker deployment
+
+The repository includes a root-level `Dockerfile` for building the Next.js app as a production container. Next.js standalone output keeps the runtime image smaller. Build from the repository root so Docker can find the `Dockerfile` and `package-lock.json`:
+
+```sh
+docker build -t digital-twins-web .
+```
+
+Run the container locally on port 8080. Set a unique `AUTH_SECRET`; do not commit secrets to the repository.
+
+```sh
+docker run --rm -p 8080:8080 \
+	-e PORT=8080 \
+	-e AUTH_SECRET="$(openssl rand -base64 32)" \
+	digital-twins-web
+```
+
+For Google Cloud Build, use the repository root (`.`) as the build context and the root-level `Dockerfile`. When deploying to Cloud Run, provide `AUTH_SECRET` as a runtime environment variable or Secret Manager secret. Cloud Run sets `PORT` for the container automatically.
