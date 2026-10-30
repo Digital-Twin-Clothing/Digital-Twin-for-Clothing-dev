@@ -64,3 +64,6 @@ venv/
 # Cloud credentials
 *service-account*.json
 gcloud-credentials*.json
+
+# GitHub Actions Google credentials
+gha-creds-*.json
