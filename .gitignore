@@ -1,0 +1,66 @@
+# dependencies
+node_modules/
+
+# next.js
+.next/
+out/
+next-env.d.ts
+
+# misc
+.DS_Store
+*.pem
+npm-debug.log*
+
+# env files
+.env*
+!.env.example
+
+# typescript
+*.tsbuildinfo
+
+# Python virtual environment
+dt-env/
+venv/
+.venv/
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfstate.lock.info
+*.tfplan
+*.tfplan.*
+crash.log
+crash.*.log
+
+# Terraform variable files (may contain secrets)
+*.tfvars
+*.tfvars.json
+
+# Allow non-secret development configuration
+!dev.tfvars
+
+# Google Cloud credentials
+*service-account*.json
+gcloud-credentials*.json
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfplan.*
+*.tfvars
+*.tfvars.json
+!dev.tfvars
+crash.log
+crash.*.log
+
+# Python virtual environments
+dt-env/
+venv/
+.venv/
+
+# Cloud credentials
+*service-account*.json
+gcloud-credentials*.json
