@@ -48,3 +48,7 @@ docker run --rm -p 8080:8080 \
 ```
 
 For Google Cloud Build, use the repository root (`.`) as the build context and the root-level `Dockerfile`. When deploying to Cloud Run, provide `AUTH_SECRET` as a runtime environment variable or Secret Manager secret. Cloud Run sets `PORT` for the container automatically.
+
+## Purpose of this repo
+
+This repo is where all the developers work on the adding features and debugging. 
