@@ -1,4 +1,9 @@
 .git
+.github
 .next
 node_modules
 npm-debug.log*
+coverage
+tests
+vitest.config.ts
+*.md
