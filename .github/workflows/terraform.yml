@@ -1,0 +1,157 @@
+# Infrastructure pipeline for the dev environment.
+#   Pull request into infrastructure: fmt -check, validate and plan; the plan
+#   is posted on the pull request and in the job summary.
+#   Merge into infrastructure: apply to dev, then a second plan that must
+#   report no changes.
+# Sign-in to Google Cloud is keyless (Workload Identity Federation). No cloud
+# keys are stored in GitHub; only this repository is trusted (infra/bootstrap).
+name: Terraform (dev)
+
+# No path filters: every pull request into infrastructure gets a plan, so the
+# required "Terraform plan" check can never be left waiting.
+on:
+  pull_request:
+    branches: [infrastructure]
+  push:
+    branches: [infrastructure]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+concurrency:
+  group: terraform-dev
+  cancel-in-progress: false
+
+env:
+  TF_VERSION: "1.17.1"
+  TF_IN_AUTOMATION: "true"
+  WORKLOAD_IDENTITY_PROVIDER: projects/878155745446/locations/global/workloadIdentityPools/github/providers/github-dev
+  SERVICE_ACCOUNT: github-deployer@digital-twin-clothing.iam.gserviceaccount.com
+
+jobs:
+  plan:
+    name: Terraform plan
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/environments/dev
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Sign in to Google Cloud (OIDC)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Format check
+        run: terraform fmt -check -recursive ../..
+
+      - name: Init
+        run: terraform init -input=false
+
+      - name: Validate
+        run: terraform validate -no-color
+
+      - name: Plan
+        run: terraform plan -input=false -no-color -var-file=dev.tfvars -out=dev.tfplan | tee plan.txt
+
+      - name: Show the plan in the job summary
+        if: always()
+        run: |
+          if [ -f plan.txt ]; then
+            {
+              echo "## Terraform plan for dev"
+              echo '```'
+              tail -c 60000 plan.txt
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Post the plan on the pull request
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('infra/environments/dev/plan.txt', 'utf8');
+            const body = [
+              '### Terraform plan for dev',
+              `Commit ${context.sha.slice(0, 7)}`,
+              '',
+              '<details><summary>Show plan</summary>',
+              '',
+              '```',
+              plan.slice(-60000),
+              '```',
+              '</details>',
+            ].join('\n');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+
+  apply:
+    name: Terraform apply
+    if: github.ref == 'refs/heads/infrastructure' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/environments/dev
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Sign in to Google Cloud (OIDC)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Init
+        run: terraform init -input=false
+
+      - name: Apply
+        run: terraform apply -input=false -auto-approve -no-color -var-file=dev.tfvars
+
+      - name: Second plan must show no changes
+        run: |
+          set +e
+          terraform plan -input=false -no-color -detailed-exitcode -var-file=dev.tfvars > second-plan.txt
+          code=$?
+          set -e
+          cat second-plan.txt
+          if [ "$code" -eq 2 ]; then
+            echo "::error::The plan after apply still shows changes"
+            exit 1
+          fi
+          exit "$code"
+
+      - name: Write the summary
+        run: |
+          {
+            echo "## Applied to dev"
+            echo "Hello World URL: $(terraform output -raw hello_world_url)"
+            echo "Image repository: $(terraform output -raw image_repository)"
+            echo
+            echo "Second plan right after apply: **no changes**"
+          } >> "$GITHUB_STEP_SUMMARY"
