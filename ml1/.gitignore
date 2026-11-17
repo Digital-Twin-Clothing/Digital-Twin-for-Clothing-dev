@@ -1,0 +1,10 @@
+# ML1: never commit model files, photos or body data
+*.ckpt
+*.pkl
+*.npz
+*.obj
+*.glb
+*_body_data.json
+my_views/
+output_*/
+data/
