@@ -1,6 +1,6 @@
 // What the Hello World banner shows. The greeting is the text the
 // "greeting-change" pull request edits to prove the pipeline works.
-export const GREETING = "Hello World";
+export const GREETING = "Hello again,  World";
 export const STARTUP_NAME = "Digital Twin for Clothing";
 
 export type BuildInfo = {
