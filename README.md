@@ -1,10 +1,10 @@
 # Digital Twin for Clothing: Delivery Platform (dev)
 
-This is the **dev** repository of the Digital Twin for Clothing startup and the front door for the *Repositories, Cloud Environments and CI/CD* assignment. It holds the Terraform that builds the dev environment (on the `infrastructure` branch), the CI/CD pipelines, and the Frontend Prototype (on `main`).
+This is the **dev** repository of the Digital Twin for Clothing startup and the front door for the *Repositories, Cloud Environments and CI/CD* assignment. The `infrastructure` branch holds the Terraform that builds the dev environment. The `main` branch holds the web app, which is deployed to dev on every merge. Code is later promoted to the [QA](https://github.com/Digital-Twin-Clothing/Digital-Twin-for-Clothing-qa) and [Prod](https://github.com/Digital-Twin-Clothing/Digital-Twin-for-Clothing-prod) repositories.
 
-## Purpose of this repo
+**Hello World URL:** https://digitaltwinforclothing-878155745446.us-east4.run.app
 
-This repository is where all developers add features and fix bugs. Every change reaches `main` or `infrastructure` through a reviewed pull request, and from here code is promoted to the [QA](https://github.com/Digital-Twin-Clothing/Digital-Twin-for-Clothing-QA) and then the [Prod](https://github.com/Digital-Twin-Clothing/Digital-Twin-for-Clothing-Prod) repositories.
+The bar at the bottom of that page shows the greeting, our startup name, the environment (`dev`) and the commit SHA the running image was built from. It started as "Hello World"; the greeting-change pull request below changed it to "Hello again, World", and the new text and SHA appeared with no manual step.
 
 ## Team
 
@@ -18,25 +18,26 @@ This repository is where all developers add features and fix bugs. Every change 
 
 ## Cloud provider: Google Cloud
 
-We chose Google Cloud for five reasons:
+We chose Google Cloud for four reasons:
 
-1. **It fits the free budget.** GCP provides with $300 free credits trail for each person on the group.
-2. **It is easy for the team.** Everyone already has a Google account, the console is approachable for new members and the UI is user friendly.
+1. **It fits the free budget.** Each member gets $300 in free credits, and Cloud Run scales to zero, so an idle dev environment costs almost nothing.
+2. **It matches our architecture.** Cloud Run runs our containers without a cluster to manage, and Cloud Storage, Artifact Registry and Secret Manager cover the storage, image and secret needs of our design.
+3. **Keyless pipelines.** Workload Identity Federation lets GitHub Actions sign in with short-lived OIDC tokens, so no cloud keys are stored in GitHub.
+4. **It is easy for the team.** Everyone already has a Google account, and Cloud Shell gives each of us a ready terminal with `gcloud` in the browser.
 
 ## Environments
 
-| Environment | Project name | Project ID | Project number | Repository | Contents now |
-|---|---|---|---|---|---|
-| dev | Digital-Twin-Clothing-Dev | `digital-twin-clothing` | 878155745446 | [Digital-Twin-for-Clothing-dev](https://github.com/Digital-Twin-Clothing/Digital-Twin-for-Clothing-dev)
-|
-| qa | digital-twin-clothing-qa | `digital-twin-clothing-qa` | 41826866945 | [Digital-Twin-for-Clothing-QA](https://github.com/Digital-Twin-Clothing/Digital-Twin-for-Clothing-QA)
-|
-| prod | Digital-Twin-Clothing-Prod | `digital-twin-clothing-prod` | 1084938837648 | [Digital-Twin-for-Clothing-Prod](https://github.com/Digital-Twin-Clothing/Digital-Twin-for-Clothing-Prod)
-|
+| Environment | Project ID | Project number | Repository | Contents now |
+|---|---|---|---|---|
+| dev | `digital-twin-clothing` | 878155745446 | [Digital-Twin-for-Clothing-dev](https://github.com/Digital-Twin-Clothing/Digital-Twin-for-Clothing-dev) | Everything below, built by Terraform |
+| qa | `digital-twin-clothing-qa` | 41826866945 | [Digital-Twin-for-Clothing-qa](https://github.com/Digital-Twin-Clothing/Digital-Twin-for-Clothing-qa) | Empty, ready for promotion |
+| prod | `digital-twin-clothing-prod` | 1084938837648 | [Digital-Twin-for-Clothing-prod](https://github.com/Digital-Twin-Clothing/Digital-Twin-for-Clothing-prod) | Empty, ready for promotion |
 
-**Access.** Each member signs in with their own Google account; there are no shared logins. Developers have the access their role needs in dev and **Viewer (read-only)** in qa and prod. eric@alchangroup.com is **Owner** on all three projects.
+**Access.** Each member signs in with their own Google account; there are no shared logins. Developers have the access their role needs in dev and **Viewer** (read-only) in qa and prod. eric@alchangroup.com is **Owner** on all three projects (screenshots under Evidence). The pipelines use their own service account, never a person's login.
 
 **Budget.** A **$300** budget (equal to the free credit) with email alerts to the whole team at **50%** and **90%**. The qa project has no billing linked yet; it stays empty until its pipeline is added in a later assignment.
+
+**Labels.** Every dev resource that supports labels carries `environment=dev` and `project=digital-twin-for-clothing`, set once through the provider's `default_labels`. (Networks, subnets and firewall rules cannot hold labels in Google Cloud.)
 
 ## Delivery platform
 
@@ -44,52 +45,69 @@ We chose Google Cloud for five reasons:
 flowchart LR
   subgraph GH["GitHub organization: Digital-Twin-Clothing"]
     subgraph DEV["Digital-Twin-for-Clothing-dev"]
-      INF["infrastructure branch"]
-      MAIN["main branch"]
+      INF["infrastructure branch<br/>Terraform"]
+      MAIN["main branch<br/>web app"]
     end
-    QA["Digital-Twin-for-Clothing-QA (main)"]
-    PROD["Digital-Twin-for-Clothing-Prod (main)"]
+    QA["Digital-Twin-for-Clothing-qa (main)"]
+    PROD["Digital-Twin-for-Clothing-prod (main)"]
   end
   subgraph GCP["Google Cloud"]
-    DEVENV["dev project: network, VM, storage, Hello World"]
+    subgraph DEVENV["dev project: digital-twin-clothing"]
+      RUN["Cloud Run: web app"]
+      AR["Artifact Registry"]
+      VM["Private VM: PostgreSQL, RabbitMQ,<br/>Redis, twin worker"]
+      GCS["Cloud Storage bucket"]
+      SM["Secret Manager"]
+    end
     QAENV["qa project: empty"]
     PRODENV["prod project: empty"]
   end
-  INF -->|"Infrastructure pipeline: plan on PR, apply on merge"| DEVENV
-  MAIN -->|"App pipeline: build, test, push, deploy on merge"| DEVENV
+  INF -->|"Terraform pipeline: plan on PR, apply on merge (OIDC)"| DEVENV
+  MAIN -->|"App pipeline: build, test, push, deploy on merge (OIDC)"| AR
+  AR --> RUN
   QA -.->|"pipeline in a later assignment"| QAENV
   PROD -.->|"pipeline in a later assignment"| PRODENV
 ```
 
-**Branches and rules.** In this repository, `main` (app) and the long-lived `infrastructure` branch (Terraform) are protected: changes arrive only through pull requests with at least one approval from another member, and the pipeline must pass before merging. The QA and Prod repositories protect `main` the same way.
+**Branches and rules.** `main` and `infrastructure` are protected: changes arrive only through pull requests with at least one approval from another member, the pipeline check must pass, and nobody can bypass these rules. The QA and Prod repositories protect `main` the same way.
 
-**Pipelines (GitHub Actions).**
+## Pipelines (GitHub Actions)
 
-| Pipeline | Trigger | Steps | Status |
-|---|---|---|---|
-| Infrastructure ([terraform-ci.yml](.github/workflows/terraform-ci.yml)) | Pull request into `infrastructure` | `terraform fmt -check`, `validate` | Running |
-| | Pull request into `infrastructure` | `terraform plan` for dev, shown in the job summary, with OIDC sign-in | In progress |
-| | Merge into `infrastructure` | `terraform apply` for dev, no manual steps | In progress |
-| App | Merge into `main` | Build the Docker image, run a test, push to Artifact Registry tagged with the commit SHA, deploy to the dev VM | In progress |
+Both pipelines sign in to Google Cloud with **Workload Identity Federation** (OIDC). The trust is limited to this repository: the identity provider only accepts tokens where `repository == Digital-Twin-Clothing/Digital-Twin-for-Clothing-dev` (see `infra/bootstrap/main.tf` on the `infrastructure` branch). No cloud keys are stored in GitHub.
 
-Both pipelines sign in to Google Cloud with Workload Identity Federation, trusted only for this repository.
+| Pipeline | Trigger | What it does |
+|---|---|---|
+| Infrastructure ([terraform.yml](https://github.com/Digital-Twin-Clothing/Digital-Twin-for-Clothing-dev/blob/infrastructure/.github/workflows/terraform.yml), on `infrastructure`) | Pull request into `infrastructure` | `terraform fmt -check`, `validate` and `plan` for dev; the plan is posted on the pull request and in the job summary |
+| | Merge into `infrastructure` | `terraform apply` for dev with no manual steps, then a second `plan` that must report no changes |
+| App ([app.yml](.github/workflows/app.yml), on `main`) | Pull request into `main` | Install, typecheck, unit tests with branch coverage, production build |
+| | Merge into `main` | The same checks, then build the Docker image tagged with the commit SHA, push it to Artifact Registry, deploy it to the Cloud Run service Terraform created, and check that the live page shows the new SHA |
 
-## Front end 
-
-**URL:** https://digitaltwinforclothing-878155745446.us-east4.run.app
 ## Architecture to Terraform
 
-The dev environment follows the architecture we submitted, scaled down for cost and using open-source components in place of managed services.
+The dev environment follows the architecture we submitted (Model and Architect of Our MVP, Section B), scaled down for cost. Open-source components run in containers in place of managed services. The Terraform lives on the `infrastructure` branch under `infra/`.
 
-| Architecture component | Terraform | Dev sizing | Status |
-|---|---|---|---|
-| Network (VPC + subnet) | `infra/modules/network` (`google_compute_network`, `google_compute_subnetwork`) | One custom VPC, one /24 subnet in us-central1 | In Terraform |
-| Ingress / firewall | `infra/modules/network` (`google_compute_firewall`) | HTTP (port 80) only, to instances tagged `dev-web` | In Terraform |
-| App compute (in place of Kubernetes) | Cloud Run service (`google_cloud_run_v2_service`) | One service, minimum 0 instances (scales to zero), smallest CPU and memory that run the app | Planned (replaces the temporary VM below) |
-| Temporary host | `infra/modules/compute` (`google_compute_instance`) | One `e2-micro` VM, Debian 12, 20 GB standard disk, us-central1-a | In Terraform; removed when Cloud Run is added |
-| Object storage (photos, avatar GLB files) | `infra/environments/dev/main.tf` (`google_storage_bucket.app_storage`) | One private bucket | In Terraform |
-| Container registry | Artifact Registry repository | One Docker repository | Planned (app pipeline) |
-| Terraform state | `infra/bootstrap` (`google_storage_bucket.terraform_state`) | One versioned bucket, public access blocked, native locking | In Terraform |
+| Architecture component | Terraform | Dev sizing |
+|---|---|---|
+| Network and trust boundaries | `infra/modules/network` (`google_compute_network`, `google_compute_subnetwork`, two `google_compute_firewall` rules) | One VPC, one /24 subnet in us-east4. No public ingress to the VM; data ports open only to the subnet; SSH only through Identity-Aware Proxy |
+| Outbound internet for private VMs | `infra/modules/network` (`google_compute_router`, `google_compute_router_nat`) | One Cloud NAT, so the VM can pull images without a public IP |
+| Website and Fit API (Kubernetes in our design) | `infra/modules/cloud_run` (`google_cloud_run_v2_service`) | One Cloud Run service, 0 to 2 instances (scales to zero), 1 CPU and 512 MiB, private traffic to the VM through Direct VPC egress |
+| PostgreSQL (database) | `infra/modules/data_vm` (`google_compute_instance`, container `postgres:16-alpine`) | One `e2-micro` VM with no public IP, 10 GB disk; data in a Docker volume |
+| RabbitMQ (message broker) | `infra/modules/data_vm` (container `rabbitmq:3-alpine`) | Same VM |
+| Redis (cache) | `infra/modules/data_vm` (container `redis:7-alpine`) | Same VM, password protected |
+| Twin Worker (GPU in our design) | `infra/modules/data_vm` (container `twin-worker`) | Placeholder container on the same VM until the MVP build adds the real worker (no GPU in dev) |
+| Object storage (photos, avatar files) | `infra/environments/dev/main.tf` (`google_storage_bucket.app_storage`) | One private bucket, public access prevention enforced |
+| Container registry | `infra/modules/registry` (`google_artifact_registry_repository`) | One Docker repository; images tagged with the commit SHA |
+| Secrets (Vault in our design) | `infra/environments/dev/secrets.tf` (`google_secret_manager_secret`, `random_password`) | Auth secret and database password, generated by Terraform, read at runtime |
+| Terraform state | `infra/bootstrap` (`google_storage_bucket.terraform_state`) | One versioned bucket with public access blocked; Cloud Storage locks the state on every run |
+| Keyless pipeline sign-in | `infra/bootstrap` (`google_iam_workload_identity_pool`, `google_iam_workload_identity_pool_provider`, `google_service_account`) | One pool and provider limited to this repository; one deployer service account |
+
+**What changed from our architecture, and why.** Kubernetes became Cloud Run because the course rules forbid managed Kubernetes and Cloud Run scales to zero. The Fit API runs inside the Next.js app for now; it moves to its own service when it grows. PostgreSQL, RabbitMQ and Redis run as containers on one small VM instead of managed services. The GPU twin worker is a placeholder until the MVP build. Secret Manager replaces HashiCorp Vault. The identity provider and email service are not in dev yet; sign-in uses NextAuth credentials in the app. The Cloud Run service was first created by hand and deployed through a console-made Cloud Build trigger; Terraform has now imported the service, the trigger was deleted, and GitHub Actions is the only deploy path.
+
+**Variables and outputs.** Names, sizes and the region come from `infra/environments/dev/dev.tfvars`. The outputs include `hello_world_url`. No passwords, keys or tokens appear in the code or in `.tfvars` files.
+
+## One-time setup (already done)
+
+`infra/bootstrap` was applied once by a project Owner from Cloud Shell. It turns on the needed Google Cloud APIs, creates the state bucket `digital-twin-clothing-tfstate`, the Workload Identity pool and provider, and the `github-deployer` service account. After that, every change to dev goes through the pipelines.
 
 ## Running `terraform plan` locally
 
@@ -98,45 +116,51 @@ The dev environment follows the architecture we submitted, scaled down for cost 
    ```sh
    gcloud auth application-default login
    ```
-3. Initialize with the remote state bucket (created once by `infra/bootstrap`) and run the plan:
+3. Run the plan (the state bucket is set in `backend.tf`):
    ```sh
+   git checkout infrastructure
    cd infra/environments/dev
-   terraform init -backend-config="bucket=<state-bucket-name>" -backend-config="prefix=dev"
+   terraform init
    terraform plan -var-file=dev.tfvars
    ```
+
+Do not run `apply` locally; merges into `infrastructure` apply through the pipeline.
+
 ## Evidence
 
 | Evidence | Link |
 |---|---|
-| Merged infrastructure pull requests | [#6 Terraform for the dev environment](https://github.com/Digital-Twin-Clothing/Digital-Twin-for-Clothing-dev/pull/6) · [#7 Terraform CI workflow](https://github.com/Digital-Twin-Clothing/Digital-Twin-for-Clothing-dev/pull/7) |
-| Infrastructure pipeline runs | [Terraform CI runs](https://github.com/Digital-Twin-Clothing/Digital-Twin-for-Clothing-dev/actions/workflows/terraform-ci.yml) |
-| Apply run | https://github.com/Digital-Twin-Clothing/Digital-Twin-for-Clothing-dev/actions/runs/41132685171 |
-| App deployment run | https://github.com/Digital-Twin-Clothing/Digital-Twin-for-Clothing-dev/pull/5 |
-| Greeting-change pull request | https://github.com/Digital-Twin-Clothing/Digital-Twin-for-Clothing-dev/pull/8 |
+| Merged infrastructure pull request (plan posted on it) | https://github.com/Digital-Twin-Clothing/Digital-Twin-for-Clothing-dev/pull/11 |
+| Its successful apply run (with the second plan showing no changes) | https://github.com/Digital-Twin-Clothing/Digital-Twin-for-Clothing-dev/actions/runs/44002703940 |
+| App deployment run | https://github.com/Digital-Twin-Clothing/Digital-Twin-for-Clothing-dev/actions/runs/44004182912 |
+| Greeting-change pull request | https://github.com/Digital-Twin-Clothing/Digital-Twin-for-Clothing-dev/pull/14 |
+| Second infrastructure pull request | https://github.com/Digital-Twin-Clothing/Digital-Twin-for-Clothing-dev/pull/15 |
+
+The greeting before and after the greeting-change pull request (same URL, new text and new commit SHA, deployed by the pipeline):
+
+| Before | After |
+|---|---|
+| ![before](docs/evidence/hello-before.png) | ![after](docs/evidence/hello-after.png) |
+
+Instructor access, one screenshot per environment (IAM page showing eric@alchangroup.com as Owner):
+
+| Environment | Screenshot |
+|---|---|
+| dev | ![dev IAM](docs/evidence/iam-dev.png) |
+| qa | ![qa IAM](docs/evidence/iam-qa.png) |
+| prod | ![prod IAM](docs/evidence/iam-prod.png) |
+
+The instructor's Owner invitations have been sent and show as pending (grey role with a warning sign) until he accepts them.
+
+## Shutting down after grading
+
+Unless the instructor asks us to keep dev for the next assignment, a project Owner runs `terraform destroy -var-file=dev.tfvars` in `infra/environments/dev` once grades are posted. The state bucket in `infra/bootstrap` is protected with `prevent_destroy` and stays.
 
 ---
 
 ## About the app
 
-**Digital Twins** is an interactive 3D virtual fitting room for the web. Users create a personalized 3D avatar from four photos (front, back, side and T-pose side), then try on digital garments in a 360° viewer. The app checks how each garment fits their body and recommends a size before they buy.
-
-The goal is to take the guesswork out of online clothes shopping. Instead of relying on generic size charts, shoppers see clothes on a body that matches their real proportions and get a fit assessment for each region (chest, waist, hips and so on).
-
-### Features
-
-- **Avatar from 4 photos.** Guided photo capture with pose checks on the device, so bad photos are caught before upload.
-- **3D body reconstruction.** A parametric SMPL-X body model is fitted to the photos and scaled to the user's real height, producing an avatar and body measurements.
-- **Virtual try-on.** Rigged 3D garments are bound to the avatar's skeleton and shown in an interactive 360° viewer.
-- **Fit assessment and size prediction.** Avatar measurements are compared against each garment's size chart to show where it's tight, good or loose, plus a recommended size.
-- **Privacy first.** Photos are stored privately and users can delete their photos and avatar at any time.
-
-### How it works
-
-1. **Capture.** The user takes or uploads four photos. MediaPipe checks the pose and framing in the browser.
-2. **Detect.** Pose landmarks and a body mask are extracted from each photo.
-3. **Reconstruct.** A GPU job fits an SMPL-X body to all four views and exports the avatar (GLB) and its measurements.
-4. **Try on.** Garments created and rigged in Blender are loaded onto the avatar using Linear Blend Skinning, with collision correction.
-5. **Fit.** The app compares body measurements against garment size charts and recommends the best size.
+**Digital Twins** is a 3D virtual fitting room for the web. Shoppers create a 3D avatar from four photos (front, back, left and right), try on clothing in a 3D viewer and get a size recommendation. The MVP is built on top of this platform; this assignment only proves the delivery path works.
 
 ### Tech stack (MVP)
 
@@ -144,24 +168,23 @@ The goal is to take the guesswork out of online clothes shopping. Instead of rel
 |---|---|
 | Frontend | Next.js, TypeScript, Tailwind CSS, React Three Fiber / Three.js |
 | Backend | Python, FastAPI |
-| Infrastructure (MVP target) | Modal (GPU inference), Supabase (auth, database, file storage); in dev these are replaced as described above |
-| Computer vision & ML | OpenCV, MediaPipe (pose detection, background segmentation), SMPL-X, PyTorch |
-| 3D garment pipeline | Blender, GLB/glTF, Linear Blend Skinning, collision correction |
+| Computer vision and ML | OpenCV, MediaPipe, SMPL-X, PyTorch |
+| 3D garments | Blender, GLB/glTF |
 
-### Docker
-
-The repository includes a root-level `Dockerfile` that builds the Next.js app as a production container (Next.js standalone output keeps the image small). Build from the repository root:
+### Run the app locally
 
 ```sh
-docker build -t digital-twins-web .
+npm ci
+npm test            # unit tests with branch coverage
+npm run dev         # http://localhost:3000
 ```
 
-Run it locally on port 8080 with a unique `AUTH_SECRET` (never commit secrets):
+With Docker (the same image the pipeline builds):
 
 ```sh
-docker run --rm -p 8080:8080 \
-	-e PORT=8080 \
-	-e AUTH_SECRET="$(openssl rand -base64 32)" \
-	digital-twins-web
+docker build --build-arg COMMIT_SHA=local -t digital-twins-web .
+docker run --rm -p 8080:8080 -e APP_ENV=local -e AUTH_TRUST_HOST=true \
+  -e AUTH_SECRET="$(openssl rand -base64 32)" digital-twins-web
 ```
 
+Never commit secrets.
