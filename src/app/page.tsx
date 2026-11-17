@@ -7,12 +7,14 @@ import { FitPanel } from "@/components/landing/FitPanel";
 import { Garments } from "@/components/landing/Garments";
 import { Cta } from "@/components/landing/Cta";
 import { Footer } from "@/components/landing/Footer";
+import { HelloWorldBanner } from "@/components/landing/HelloWorldBanner";
 
 export default function HomePage() {
   return (
     <>
       {/* Shared SVG symbols (avatar body, clip path, shirt) used by every figure */}
       <BodyDefs />
+      <HelloWorldBanner />
       <Nav />
       <main>
         <Hero />

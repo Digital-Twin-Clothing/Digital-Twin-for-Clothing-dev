@@ -1,0 +1,133 @@
+# App pipeline for the dev environment.
+#   Pull request into main: install, typecheck, unit tests and a production build.
+#   Merge into main: the same checks, then build the Docker image tagged with the
+#   commit SHA, push it to Artifact Registry, deploy it to the Cloud Run service
+#   that Terraform created, and check that the live page shows the new SHA.
+# Sign-in to Google Cloud is keyless (Workload Identity Federation), the same
+# as the infrastructure pipeline. No cloud keys are stored in GitHub.
+name: App (dev)
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: app-dev-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PROJECT_ID: digital-twin-clothing
+  REGION: us-east4
+  SERVICE: digitaltwinforclothing
+  IMAGE: us-east4-docker.pkg.dev/digital-twin-clothing/digital-twin-dev/web
+  WORKLOAD_IDENTITY_PROVIDER: projects/878155745446/locations/global/workloadIdentityPools/github/providers/github-dev
+  SERVICE_ACCOUNT: github-deployer@digital-twin-clothing.iam.gserviceaccount.com
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests with branch coverage
+        run: npm test
+
+      - name: Coverage in the job summary
+        if: always()
+        run: |
+          if [ -f coverage/coverage-summary.json ]; then
+            # shellcheck disable=SC2016  # the single-quoted text is JavaScript, not shell
+            node -e '
+              const t = require("./coverage/coverage-summary.json").total;
+              const row = k => `| ${k} | ${t[k].covered} / ${t[k].total} | ${t[k].pct}% |`;
+              console.log(["## Unit test coverage", "| Metric | Covered | Percent |", "|---|---|---|",
+                row("branches"), row("statements"), row("functions"), row("lines")].join("\n"));
+            ' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Keep the coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          if-no-files-found: ignore
+
+      - name: Production build
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+
+  deploy:
+    name: Push image and deploy to dev
+    needs: test
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Sign in to Google Cloud (OIDC)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Let Docker push to Artifact Registry
+        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Build the image, tagged with the commit SHA
+        run: docker build --build-arg COMMIT_SHA="${GITHUB_SHA}" -t "${IMAGE}:${GITHUB_SHA}" .
+
+      - name: Push the image
+        run: docker push "${IMAGE}:${GITHUB_SHA}"
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run services update "${SERVICE}" \
+            --project "${PROJECT_ID}" \
+            --region "${REGION}" \
+            --image "${IMAGE}:${GITHUB_SHA}" \
+            --quiet
+
+      - name: Check the live page shows this commit
+        run: |
+          url=$(gcloud run services describe "${SERVICE}" --project "${PROJECT_ID}" --region "${REGION}" --format='value(status.url)')
+          for _ in 1 2 3 4 5 6; do
+            if curl -fsS "$url" | grep -q "${GITHUB_SHA}"; then
+              echo "Live at $url with commit ${GITHUB_SHA}"
+              {
+                echo "## Deployed to dev"
+                echo "URL: $url"
+                echo "Image: ${IMAGE}:${GITHUB_SHA}"
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::$url does not show commit ${GITHUB_SHA}"
+          exit 1
