@@ -151,11 +151,6 @@ Instructor access, one screenshot per environment (IAM page showing eric@alchang
 | prod | ![prod IAM](docs/evidence/iam-prod.png) |
 
 The instructor's Owner invitations have been sent and show as pending (grey role with a warning sign) until he accepts them.
-
-## Shutting down after grading
-
-Unless the instructor asks us to keep dev for the next assignment, a project Owner runs `terraform destroy -var-file=dev.tfvars` in `infra/environments/dev` once grades are posted. The state bucket in `infra/bootstrap` is protected with `prevent_destroy` and stays.
-
 ---
 
 ## About the app
