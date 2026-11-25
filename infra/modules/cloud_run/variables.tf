@@ -64,3 +64,13 @@ variable "resend_api_key_secret_id" {
   description = "Secret Manager secret that holds the Resend API key for verification emails"
   type        = string
 }
+
+variable "google_client_id" {
+  description = "Client ID of the Google OAuth client used for sign in with Google (not a secret)"
+  type        = string
+}
+
+variable "google_client_secret_secret_id" {
+  description = "Secret Manager secret that holds the Google OAuth client secret"
+  type        = string
+}

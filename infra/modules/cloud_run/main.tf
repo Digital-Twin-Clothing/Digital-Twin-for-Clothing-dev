@@ -110,6 +110,21 @@ resource "google_cloud_run_v2_service" "app" {
       }
 
       env {
+        name  = "AUTH_GOOGLE_ID"
+        value = var.google_client_id
+      }
+
+      env {
+        name = "AUTH_GOOGLE_SECRET"
+        value_source {
+          secret_key_ref {
+            secret  = var.google_client_secret_secret_id
+            version = "latest"
+          }
+        }
+      }
+
+      env {
         name = "AUTH_SECRET"
         value_source {
           secret_key_ref {

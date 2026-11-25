@@ -68,3 +68,8 @@ variable "site_url" {
   description = "Public URL of the dev site, used in the links of verification emails"
   type        = string
 }
+
+variable "google_client_id" {
+  description = "Client ID of the Google OAuth client for sign in with Google (not a secret)"
+  type        = string
+}

@@ -58,3 +58,24 @@ resource "google_secret_manager_secret_version" "resend_api_key" {
     ignore_changes = [secret_data]
   }
 }
+
+# Client secret of the Google OAuth client (sign in with Google). Same approach as
+# the Resend key: a placeholder here, the real value added by hand and ignored by
+# Terraform afterwards:
+#   printf '%s' 'GOCSPX-...' | gcloud secrets versions add google-oauth-client-secret-dev --data-file=-
+resource "google_secret_manager_secret" "google_client_secret" {
+  secret_id = "google-oauth-client-secret-${var.environment}"
+
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_version" "google_client_secret" {
+  secret      = google_secret_manager_secret.google_client_secret.id
+  secret_data = "placeholder-replace-with-real-secret"
+
+  lifecycle {
+    ignore_changes = [secret_data]
+  }
+}
