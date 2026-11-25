@@ -18,6 +18,8 @@ export default defineConfig({
         "src/lib/users.ts",
         "src/lib/height.ts",
         "src/app/api/avatar-photos/route.ts",
+        "src/app/api/avatar-model/route.ts",
+        "src/lib/avatar-model.ts",
         "src/lib/build-info.ts",
         "src/middleware.ts",
         "src/app/create-avatar/page.tsx",

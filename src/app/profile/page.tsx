@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { db } from "@/lib/db";
 import { formatHeight } from "@/lib/height";
+import { modelState } from "@/lib/avatar-model";
+import { ModelViewer } from "@/components/profile/ModelViewer";
 
 const SLOTS = [
   ["front", "Front"],
@@ -19,6 +21,7 @@ export default async function ProfilePage() {
   const photos: Record<string, string> = record?.photos ?? {};
   const hasPhotos = SLOTS.some(([slot]) => photos[slot]);
   const updatedAt: Date | undefined = record?.updatedAt;
+  const model = modelState(record);
 
   return (
     <div className="min-h-screen bg-bg">
@@ -44,6 +47,28 @@ export default async function ProfilePage() {
             </div>
           )}
         </div>
+
+        {model !== "none" && (
+          <div className="mb-10">
+            <h2 className="mb-4 font-serif text-2xl text-ink">Your 3D model</h2>
+            <div className="overflow-hidden rounded-2xl border border-line bg-card">
+              {model === "ready" ? (
+                <ModelViewer
+                  src={`/api/avatar-model?v=${updatedAt?.getTime() ?? 0}`}
+                  alt="Your 3D body model"
+                />
+              ) : model === "failed" ? (
+                <p className="p-8 text-mute">
+                  We couldn&apos;t build your model from these photos. Try uploading clearer photos.
+                </p>
+              ) : (
+                <p className="p-8 text-mute">
+                  Building your 3D model… This can take a few minutes. Check back soon.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="mb-6 flex items-end justify-between gap-4">
           <div>
