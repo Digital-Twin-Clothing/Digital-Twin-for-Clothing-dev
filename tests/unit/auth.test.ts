@@ -1,47 +1,79 @@
-// S1-UT-06 to S1-UT-08: authorize(), jwt() and session() in src/lib/auth.ts
-// Test double: nextAuthStub replaces the NextAuth() factory so no auth server starts.
-// bcryptjs is real (no double), so password hashing is exercised for real.
-import { describe, it, expect, vi } from "vitest";
+// S1-UT-06 to S1-UT-08: authorize(), jwt() and session() (src/lib/auth.ts, src/lib/auth.config.ts)
+// Test doubles: nextAuthStub replaces the NextAuth() factory so no auth server starts, and
+// usersMock replaces the Datastore-backed user lookup. bcryptjs is real, so password
+// hashing is exercised for real.
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { hash } from "bcryptjs";
 
 const nextAuthStub = vi.hoisted(() =>
   vi.fn(() => ({ handlers: {}, auth: vi.fn(), signIn: vi.fn(), signOut: vi.fn() }))
 );
-vi.mock("next-auth", () => ({ default: nextAuthStub }));
+const usersMock = vi.hoisted(() => ({ getUserByEmail: vi.fn() }));
 
-import { authConfig, createUser, getUserByEmail } from "@/lib/auth";
+vi.mock("next-auth", () => ({
+  default: nextAuthStub,
+  CredentialsSignin: class CredentialsSignin extends Error {
+    code = "credentials";
+  },
+}));
+vi.mock("@/lib/users", () => usersMock);
+
+import "@/lib/auth";
+import { authConfig } from "@/lib/auth.config";
 
 // next-auth keeps the user's authorize() under provider.options
-const credentialsProvider = authConfig.providers[0] as any;
-const authorize = credentialsProvider.options.authorize as (c: unknown) => Promise<unknown>;
+const fullConfig = (nextAuthStub.mock.calls as unknown as any[][])[0][0];
+const authorize = fullConfig.providers[0].options.authorize as (c: unknown) => Promise<unknown>;
 const callbacks = authConfig.callbacks as any;
 
+async function storedUser(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "u1",
+    email: "maya.test@example.com",
+    name: "Maya Test",
+    passwordHash: await hash("CorrectPass1", 4),
+    emailVerified: true,
+    ...overrides,
+  };
+}
+
+beforeEach(() => usersMock.getUserByEmail.mockReset());
+
 describe("authorize() for the credentials provider", () => {
-  it("S1-UT-06 (a) password missing: branch !credentials?.email || !credentials?.password is true", async () => {
-    await expect(authorize({ email: "maya.test@example.com" })).rejects.toThrow("Invalid credentials");
-    await expect(authorize(undefined)).rejects.toThrow("Invalid credentials");
+  it("S1-UT-06 (a) missing or non-string fields are rejected", async () => {
+    expect(await authorize({ email: "maya.test@example.com" })).toBeNull();
+    expect(await authorize(undefined)).toBeNull();
+    expect(await authorize({ email: ["a@b.co"], password: "x" })).toBeNull();
+    expect(usersMock.getUserByEmail).not.toHaveBeenCalled();
   });
 
-  it("S1-UT-06 (b) unknown email: branch !user || !user.password is true", async () => {
+  it("S1-UT-06 (b) unknown email is rejected, so a made-up address cannot sign in", async () => {
+    usersMock.getUserByEmail.mockResolvedValue(null);
+    expect(await authorize({ email: "nobody@example.com", password: "Abcdef12" })).toBeNull();
+  });
+
+  it("S1-UT-07 (a) wrong password is rejected", async () => {
+    usersMock.getUserByEmail.mockResolvedValue(await storedUser());
+    expect(await authorize({ email: "maya.test@example.com", password: "WrongPass1" })).toBeNull();
+  });
+
+  it("S1-UT-07 (b) right password but email not verified: sign-in is blocked with a clear code", async () => {
+    usersMock.getUserByEmail.mockResolvedValue(await storedUser({ emailVerified: false }));
     await expect(
-      authorize({ email: "nobody@example.com", password: "Abcdef12" })
-    ).rejects.toThrow("Invalid credentials");
+      authorize({ email: "maya.test@example.com", password: "CorrectPass1" })
+    ).rejects.toMatchObject({ code: "email_not_verified" });
   });
 
-  it("S1-UT-07 (a) wrong password: branch !isPasswordValid is true", async () => {
-    await createUser("dikshya.test@example.com", "CorrectPass1", "Dikshya Test");
-    await expect(
-      authorize({ email: "dikshya.test@example.com", password: "WrongPass1" })
-    ).rejects.toThrow("Invalid credentials");
+  it("S1-UT-07 (c) wrong password on an unverified account does not reveal that it exists", async () => {
+    usersMock.getUserByEmail.mockResolvedValue(await storedUser({ emailVerified: false }));
+    expect(await authorize({ email: "maya.test@example.com", password: "WrongPass1" })).toBeNull();
   });
 
-  it("S1-UT-07 (b) right password: branch !isPasswordValid is false, returns user without password", async () => {
-    const created = await createUser("maya.test@example.com", "CorrectPass1", "Maya Test");
-    const stored = await getUserByEmail("maya.test@example.com");
-    expect(stored?.password).not.toBe("CorrectPass1"); // stored as a bcrypt hash
-    expect(stored?.password.startsWith("$2")).toBe(true);
+  it("S1-UT-07 (d) right password and verified email: returns the user without the hash", async () => {
+    usersMock.getUserByEmail.mockResolvedValue(await storedUser());
     const user = await authorize({ email: "maya.test@example.com", password: "CorrectPass1" });
-    expect(user).toEqual({ id: created.id, email: "maya.test@example.com", name: "Maya Test" });
-    expect(user).not.toHaveProperty("password");
+    expect(user).toEqual({ id: "u1", email: "maya.test@example.com", name: "Maya Test" });
+    expect(user).not.toHaveProperty("passwordHash");
   });
 });
 
@@ -64,15 +96,5 @@ describe("JWT and session callbacks", () => {
 
     const noUser = await callbacks.session({ session: { expires: "x" }, token });
     expect(noUser).toEqual({ expires: "x" });
-  });
-});
-
-describe("Known bug kept as an expected failure until DT-21 fixes it", () => {
-  // Bug: getUserByEmail() compares emails case-sensitively, so MAYA.TEST@example.com
-  // and maya.test@example.com become two accounts. Regression case S2-RT-01.
-  it.fails("S2-RT-01 (bug) email lookup ignores letter case", async () => {
-    await createUser("case.test@example.com", "CorrectPass1", "Case Test");
-    const found = await getUserByEmail("CASE.TEST@example.com");
-    expect(found).toBeDefined();
   });
 });

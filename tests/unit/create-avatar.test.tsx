@@ -34,6 +34,7 @@ function createButton() {
 }
 
 let alertSpy: ReturnType<typeof vi.fn>;
+let fetchSpy: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   authStateStub.isAuthenticated = true;
@@ -41,8 +42,13 @@ beforeEach(() => {
   routerPushSpy.mockReset();
   alertSpy = vi.fn();
   window.alert = alertSpy as any;
+  fetchSpy = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+  vi.stubGlobal("fetch", fetchSpy);
 });
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe("CreateAvatarPage", () => {
   it("S1-UT-10 sign-in check: branch !isLoading && !isAuthenticated taken both ways", () => {
@@ -61,7 +67,7 @@ describe("CreateAvatarPage", () => {
   it("S1-UT-11 (a) file type: branch !file.type.startsWith('image/') is true for a PDF", () => {
     const { container } = render(<CreateAvatarPage />);
     fireEvent.change(slotInputs(container)[0], { target: { files: [photo("front.pdf", "application/pdf")] } });
-    expect(alertSpy).toHaveBeenCalledWith("Please upload an image file");
+    expect(alertSpy).toHaveBeenCalledWith("Please upload a JPG, PNG or WebP image");
     expect(screen.queryByAltText("Front View preview")).toBeNull();
   });
 
@@ -102,5 +108,24 @@ describe("CreateAvatarPage", () => {
     expect(await screen.findByText("Processing...")).toBeTruthy();
     expect(await screen.findByText("Photos uploaded successfully!", {}, { timeout: 4000 })).toBeTruthy();
     expect(alertSpy).not.toHaveBeenCalled();
+
+    // one request per photo, all sharing one batch id
+    expect(fetchSpy).toHaveBeenCalledTimes(4);
+    const bodies = fetchSpy.mock.calls.map((c: any[]) => c[1].body as FormData);
+    expect(bodies.map((b) => b.get("slot")).sort()).toEqual(["back", "front", "left", "right"]);
+    expect(new Set(bodies.map((b) => b.get("batch"))).size).toBe(1);
+  });
+
+  it("S1-UT-12 (d) server rejects a photo: the error is shown and success is not", async () => {
+    fetchSpy.mockResolvedValue({ ok: false, json: async () => ({ error: "front: image must be under 10MB" }) });
+    const { container } = render(<CreateAvatarPage />);
+    for (const [i, name] of ["Front View", "Back View", "Left Side", "Right Side"].entries()) {
+      fireEvent.change(slotInputs(container)[0], { target: { files: [photo(`p${i}.jpg`)] } });
+      await screen.findByAltText(`${name} preview`);
+    }
+    fireEvent.click(createButton());
+    await vi.waitFor(() => expect(alertSpy).toHaveBeenCalledWith("front: image must be under 10MB"));
+    expect(screen.queryByText("Photos uploaded successfully!")).toBeNull();
+    expect(fetchSpy).toHaveBeenCalledTimes(1); // stops at the first failure
   });
 });

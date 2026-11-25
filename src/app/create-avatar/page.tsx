@@ -56,8 +56,8 @@ export default function CreateAvatarPage() {
     if (!file) return;
 
     // Validate file type
-    if (!file.type.startsWith("image/")) {
-      alert("Please upload an image file");
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      alert("Please upload a JPG, PNG or WebP image");
       return;
     }
 
@@ -93,15 +93,27 @@ export default function CreateAvatarPage() {
 
     setUploading(true);
 
-    // Simulate upload delay
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
-    // TODO: Actually upload photos to your backend/storage
-    // const formData = new FormData();
-    // Object.entries(photos).forEach(([slot, file]) => {
-    //   if (file) formData.append(slot, file);
-    // });
-    // await fetch('/api/upload-avatar-photos', { method: 'POST', body: formData });
+    try {
+      const batch = crypto.randomUUID();
+      for (const [slot, file] of Object.entries(photos)) {
+        if (!file) continue;
+        const formData = new FormData();
+        formData.append("slot", slot);
+        formData.append("batch", batch);
+        formData.append("file", file);
+        const res = await fetch("/api/avatar-photos", { method: "POST", body: formData });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          alert(data.error || `Upload of ${PHOTO_LABELS[slot as PhotoSlot]} failed. Please try again.`);
+          setUploading(false);
+          return;
+        }
+      }
+    } catch {
+      alert("Upload failed. Please check your connection and try again.");
+      setUploading(false);
+      return;
+    }
 
     setUploading(false);
     setSuccess(true);

@@ -1,10 +1,10 @@
 // S1-UT-09: route guard in src/middleware.ts
-// Test double: authWrapperStub makes auth(handler) return the handler itself,
+// Test double: the next-auth stub makes auth(handler) return the handler itself,
 // so each test sets req.auth directly (null = signed out).
 import { describe, it, expect, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-vi.mock("@/lib/auth", () => ({ auth: (handler: unknown) => handler }));
+vi.mock("next-auth", () => ({ default: () => ({ auth: (handler: unknown) => handler }) }));
 
 import middleware from "@/middleware";
 
@@ -34,10 +34,13 @@ describe("middleware route guard", () => {
     expect(run(request("/login", false)).headers.get("x-middleware-next")).toBe("1");
   });
 
-  // Known gap: /create-avatar is not in protectedRoutes, so the server serves the page
-  // to signed-out visitors and only the browser redirects. Security case S1-SEC-01.
-  it.fails("S1-SEC-01 (gap) signed out on /create-avatar is redirected by the server", () => {
+  it("S1-SEC-01 signed out on /create-avatar is redirected by the server", () => {
     const res = run(request("/create-avatar", false));
     expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toBe("http://localhost:3000/login?callbackUrl=%2Fcreate-avatar");
+  });
+
+  it("S1-SEC-01 signed in on /create-avatar passes through", () => {
+    expect(run(request("/create-avatar", true)).headers.get("x-middleware-next")).toBe("1");
   });
 });

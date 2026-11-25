@@ -15,6 +15,7 @@ export default function SignupPage() {
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sent, setSent] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,25 +56,30 @@ export default function SignupPage() {
         return;
       }
 
-      // Auto sign in after successful signup
-      const result = await signIn("credentials", {
-        email: formData.email,
-        password: formData.password,
-        redirect: false,
-      });
-
-      if (result?.error) {
-        setError("Account created but failed to sign in. Please try logging in.");
-      } else {
-        router.push("/");
-        router.refresh();
-      }
+      setSent(true);
     } catch (err) {
       setError("An error occurred. Please try again.");
     } finally {
       setLoading(false);
     }
   };
+
+  if (sent) {
+    return (
+      <div className="min-h-screen bg-bg flex items-center justify-center px-4 py-12">
+        <div className="w-full max-w-md text-center">
+          <h1 className="text-3xl font-serif text-ink mb-3">Check your email</h1>
+          <p className="text-mute text-sm mb-8">
+            We sent a verification link to <span className="text-ink">{formData.email}</span>.
+            Click it to activate your account, then sign in.
+          </p>
+          <Link href="/login" className="text-ink underline underline-offset-4">
+            Go to sign in
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-bg flex items-center justify-center px-4 py-12">

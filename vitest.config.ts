@@ -14,6 +14,8 @@ export default defineConfig({
       include: [
         "src/app/api/auth/signup/route.ts",
         "src/lib/auth.ts",
+        "src/lib/auth.config.ts",
+        "src/lib/users.ts",
         "src/lib/build-info.ts",
         "src/middleware.ts",
         "src/app/create-avatar/page.tsx",
