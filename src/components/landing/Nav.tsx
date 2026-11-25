@@ -56,6 +56,9 @@ export function Nav() {
               {l.label}
             </a>
           ))}
+          <Link href="/shop" className="nav-link">
+            Shop
+          </Link>
         </div>
         <div className="flex items-center gap-3">
           {!isLoading && (
@@ -65,6 +68,12 @@ export function Nav() {
                   <span className="hidden text-sm text-mute md:inline">
                     {user?.name}
                   </span>
+                  <Button href="/profile" variant="ghost" size="sm">
+                    Profile
+                  </Button>
+                  <Button href="/create-avatar" variant="primary" size="sm">
+                    Create avatar
+                  </Button>
                   <Button onClick={handleSignOut} variant="ghost" size="sm">
                     Sign out
                   </Button>

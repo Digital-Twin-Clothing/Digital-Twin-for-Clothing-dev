@@ -1,56 +1,40 @@
 import { NextResponse } from "next/server";
-import { createUser, getUserByEmail } from "@/lib/auth";
+import { createUser, createVerificationToken, getUserByEmail } from "@/lib/users";
+import { sendVerificationEmail } from "@/lib/email";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function POST(request: Request) {
   try {
-    const { email, password, name } = await request.json();
+    const body = await request.json();
+    const { email, password, name } = body ?? {};
 
-    // Validate input
-    if (!email || !password || !name) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      );
+    if (typeof email !== "string" || typeof password !== "string" || typeof name !== "string" || !email || !password || !name.trim()) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return NextResponse.json(
-        { error: "Invalid email format" },
-        { status: 400 }
-      );
+    if (!EMAIL_RE.test(email)) {
+      return NextResponse.json({ error: "Invalid email format" }, { status: 400 });
     }
-
-    // Validate password strength
     if (password.length < 8) {
-      return NextResponse.json(
-        { error: "Password must be at least 8 characters long" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Password must be at least 8 characters long" }, { status: 400 });
     }
 
-    // Check if user already exists
-    const existingUser = await getUserByEmail(email);
-    if (existingUser) {
-      return NextResponse.json(
-        { error: "User already exists" },
-        { status: 400 }
-      );
+    const existing = await getUserByEmail(email);
+    if (existing?.emailVerified) {
+      return NextResponse.json({ error: "User already exists" }, { status: 400 });
     }
 
-    // Create user
-    const user = await createUser(email, password, name);
+    // New account, or a previous signup that was never verified: (re)send the link.
+    const user = existing ?? (await createUser(email, password, name));
+    const token = await createVerificationToken(user.email);
+    await sendVerificationEmail(user.email, user.name, token);
 
     return NextResponse.json(
-      { message: "User created successfully", user },
-      { status: 201 }
+      { message: "Check your email to verify your account.", email: user.email },
+      { status: 201 },
     );
   } catch (error) {
     console.error("Signup error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

@@ -1,12 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const params = useSearchParams();
+  const notice = params.get("verified")
+    ? "Email verified. You can sign in now."
+    : params.get("verify_error")
+      ? "That verification link is invalid or expired. Sign up again to get a new one."
+      : "";
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -26,7 +40,9 @@ export default function LoginPage() {
         redirect: false,
       });
 
-      if (result?.error) {
+      if (result?.code === "email_not_verified") {
+        setError("Please verify your email first. Check your inbox for the link.");
+      } else if (result?.error) {
         setError("Invalid email or password");
       } else {
         router.push("/");
@@ -98,6 +114,11 @@ export default function LoginPage() {
             </div>
 
             {/* Error Message */}
+            {notice && !error && (
+              <div className="bg-bg border border-line text-ink px-4 py-3 rounded-lg text-sm">
+                {notice}
+              </div>
+            )}
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg text-sm">
                 {error}

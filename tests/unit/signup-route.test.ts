@@ -1,12 +1,16 @@
 // S1-UT-01 to S1-UT-05: POST /api/auth/signup (src/app/api/auth/signup/route.ts)
-// Test double: authStoreMock replaces getUserByEmail and createUser from @/lib/auth.
+// Test doubles: usersMock replaces the Datastore-backed user functions and emailMock
+// replaces the Resend email sender, so no cloud service is called.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const authStoreMock = vi.hoisted(() => ({
   getUserByEmail: vi.fn(),
   createUser: vi.fn(),
+  createVerificationToken: vi.fn(),
 }));
-vi.mock("@/lib/auth", () => authStoreMock);
+const emailMock = vi.hoisted(() => ({ sendVerificationEmail: vi.fn() }));
+vi.mock("@/lib/users", () => authStoreMock);
+vi.mock("@/lib/email", () => emailMock);
 
 import { POST } from "@/app/api/auth/signup/route";
 
@@ -24,6 +28,8 @@ describe("POST /api/auth/signup", () => {
   beforeEach(() => {
     authStoreMock.getUserByEmail.mockReset();
     authStoreMock.createUser.mockReset();
+    authStoreMock.createVerificationToken.mockReset().mockResolvedValue("tok");
+    emailMock.sendVerificationEmail.mockReset().mockResolvedValue(undefined);
   });
 
   it("S1-UT-01 missing name: branch !email || !password || !name is true", async () => {
@@ -47,25 +53,43 @@ describe("POST /api/auth/signup", () => {
     expect(authStoreMock.createUser).not.toHaveBeenCalled();
   });
 
-  it("S1-UT-03 (b) boundary 8 characters, new email: length < 8 false and existingUser false", async () => {
-    authStoreMock.getUserByEmail.mockResolvedValue(undefined);
+  it("S1-UT-03 (b) boundary 8 characters, new email: account is created and a verification email is sent", async () => {
+    authStoreMock.getUserByEmail.mockResolvedValue(null);
     authStoreMock.createUser.mockResolvedValue({ id: "u1", email: valid.email, name: valid.name });
     const res = await POST(signupRequest(valid));
     expect(res.status).toBe(201);
     const body = await res.json();
-    expect(body.message).toBe("User created successfully");
-    expect(body.user).toEqual({ id: "u1", email: valid.email, name: valid.name });
-    expect(body.user).not.toHaveProperty("password");
-    expect(authStoreMock.createUser).toHaveBeenCalledTimes(1);
+    expect(body.message).toBe("Check your email to verify your account.");
+    expect(body).not.toHaveProperty("user");
     expect(authStoreMock.createUser).toHaveBeenCalledWith(valid.email, valid.password, valid.name);
+    expect(emailMock.sendVerificationEmail).toHaveBeenCalledWith(valid.email, valid.name, "tok");
   });
 
-  it("S1-UT-04 email already used: branch existingUser is true", async () => {
-    authStoreMock.getUserByEmail.mockResolvedValue({ id: "u0", email: valid.email });
+  it("S1-UT-04 email already registered and verified: rejected, nothing is sent", async () => {
+    authStoreMock.getUserByEmail.mockResolvedValue({ id: "u0", email: valid.email, name: "M", emailVerified: true });
     const res = await POST(signupRequest(valid));
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: "User already exists" });
     expect(authStoreMock.createUser).not.toHaveBeenCalled();
+    expect(emailMock.sendVerificationEmail).not.toHaveBeenCalled();
+  });
+
+  it("S1-UT-04 (b) earlier signup never verified: a new link is sent, no second account is created", async () => {
+    authStoreMock.getUserByEmail.mockResolvedValue({ id: "u0", email: valid.email, name: "Maya Test", emailVerified: false });
+    const res = await POST(signupRequest(valid));
+    expect(res.status).toBe(201);
+    expect(authStoreMock.createUser).not.toHaveBeenCalled();
+    expect(emailMock.sendVerificationEmail).toHaveBeenCalledWith(valid.email, "Maya Test", "tok");
+  });
+
+  it("S1-UT-04 (c) email sending fails: returns 500 instead of pretending it worked", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    authStoreMock.getUserByEmail.mockResolvedValue(null);
+    authStoreMock.createUser.mockResolvedValue({ id: "u1", email: valid.email, name: valid.name });
+    emailMock.sendVerificationEmail.mockRejectedValue(new Error("resend down"));
+    const res = await POST(signupRequest(valid));
+    expect(res.status).toBe(500);
+    errorSpy.mockRestore();
   });
 
   it("S1-UT-05 body is not JSON: catch path returns 500", async () => {

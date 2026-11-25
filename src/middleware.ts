@@ -1,4 +1,7 @@
-import { auth } from "@/lib/auth";
+import NextAuth from "next-auth";
+import { authConfig } from "@/lib/auth.config";
+
+const { auth } = NextAuth(authConfig);
 import { NextResponse } from "next/server";
 
 export default auth((req) => {
@@ -6,7 +9,7 @@ export default auth((req) => {
   const isAuthenticated = !!req.auth;
 
   // Define protected routes that require authentication
-  const protectedRoutes = ["/dashboard", "/profile", "/settings"];
+  const protectedRoutes = ["/dashboard", "/profile", "/settings", "/create-avatar"];
 
   // Define auth routes (login/signup) that should redirect to home if already logged in
   const authRoutes = ["/login", "/signup"];
