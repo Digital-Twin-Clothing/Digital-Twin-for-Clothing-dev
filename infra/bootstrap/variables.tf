@@ -35,6 +35,8 @@ variable "apis" {
     "artifactregistry.googleapis.com",
     "cloudresourcemanager.googleapis.com",
     "compute.googleapis.com",
+    "datastore.googleapis.com",
+    "firestore.googleapis.com",
     "iam.googleapis.com",
     "iamcredentials.googleapis.com",
     "run.googleapis.com",
@@ -58,4 +60,10 @@ variable "deployer_roles" {
     "roles/serviceusage.serviceUsageConsumer",
     "roles/storage.admin",
   ]
+}
+
+variable "app_runtime_account_email" {
+  description = "Service account the Cloud Run app runs as (created by the dev environment)"
+  type        = string
+  default     = "web-app-dev@digital-twin-clothing.iam.gserviceaccount.com"
 }

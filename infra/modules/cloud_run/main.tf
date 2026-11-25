@@ -14,6 +14,17 @@ resource "google_secret_manager_secret_iam_member" "app_reads" {
   member    = "serviceAccount:${google_service_account.app.email}"
 }
 
+# The app saves and reads avatar photos in this one bucket, and nowhere else.
+resource "google_storage_bucket_iam_member" "app_photos" {
+  bucket = var.storage_bucket
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.app.email}"
+}
+
+# Note: the Firestore permission (roles/datastore.user) is project-wide, so it is
+# granted in infra/bootstrap, which a project Owner runs. The pipeline account
+# is not allowed to change project-level access.
+
 resource "google_cloud_run_v2_service" "app" {
   name                = var.service_name
   location            = var.region
@@ -69,6 +80,36 @@ resource "google_cloud_run_v2_service" "app" {
       }
 
       env {
+        name  = "GCP_PROJECT_ID"
+        value = var.project_id
+      }
+
+      env {
+        name  = "GCS_BUCKET"
+        value = var.storage_bucket
+      }
+
+      env {
+        name  = "APP_URL"
+        value = var.site_url
+      }
+
+      env {
+        name  = "AUTH_URL"
+        value = var.site_url
+      }
+
+      env {
+        name = "RESEND_API_KEY"
+        value_source {
+          secret_key_ref {
+            secret  = var.resend_api_key_secret_id
+            version = "latest"
+          }
+        }
+      }
+
+      env {
         name = "AUTH_SECRET"
         value_source {
           secret_key_ref {
@@ -90,7 +131,10 @@ resource "google_cloud_run_v2_service" "app" {
     ]
   }
 
-  depends_on = [google_secret_manager_secret_iam_member.app_reads]
+  depends_on = [
+    google_secret_manager_secret_iam_member.app_reads,
+    google_storage_bucket_iam_member.app_photos,
+  ]
 }
 
 # Anyone can open the dev site (no custom domain needed).

@@ -47,10 +47,19 @@ module "app" {
   readable_secret_ids = [
     google_secret_manager_secret.auth_secret.secret_id,
     google_secret_manager_secret.db_password.secret_id,
+    google_secret_manager_secret.resend_api_key.secret_id,
   ]
 
-  # The app must not start before its secret has a value.
-  depends_on = [google_secret_manager_secret_version.auth_secret]
+  project_id               = var.project_id
+  storage_bucket           = google_storage_bucket.app_storage.name
+  site_url                 = var.site_url
+  resend_api_key_secret_id = google_secret_manager_secret.resend_api_key.secret_id
+
+  # The app must not start before its secrets have a value.
+  depends_on = [
+    google_secret_manager_secret_version.auth_secret,
+    google_secret_manager_secret_version.resend_api_key,
+  ]
 }
 
 # Private storage for photos and avatar files.

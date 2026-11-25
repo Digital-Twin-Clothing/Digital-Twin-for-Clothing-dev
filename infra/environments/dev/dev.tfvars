@@ -17,3 +17,5 @@ data_vm_name         = "digital-twin-dev-data"
 data_vm_machine_type = "e2-micro"
 
 bucket_name = "digital-twin-clothing-dev-app-storage"
+
+site_url = "https://digitaltwinforclothing-878155745446.us-east4.run.app"

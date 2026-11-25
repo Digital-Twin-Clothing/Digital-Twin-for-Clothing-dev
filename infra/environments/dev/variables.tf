@@ -63,3 +63,8 @@ variable "bucket_name" {
   description = "Globally unique name of the private app storage bucket"
   type        = string
 }
+
+variable "site_url" {
+  description = "Public URL of the dev site, used in the links of verification emails"
+  type        = string
+}

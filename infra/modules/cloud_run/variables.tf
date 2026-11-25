@@ -44,3 +44,23 @@ variable "readable_secret_ids" {
   description = "Secret Manager secrets the app may read"
   type        = list(string)
 }
+
+variable "project_id" {
+  description = "Google Cloud project ID, used by the app to reach Firestore and Cloud Storage"
+  type        = string
+}
+
+variable "storage_bucket" {
+  description = "Private bucket where the app saves uploaded avatar photos"
+  type        = string
+}
+
+variable "site_url" {
+  description = "Public URL of the site, used in the links of verification emails"
+  type        = string
+}
+
+variable "resend_api_key_secret_id" {
+  description = "Secret Manager secret that holds the Resend API key for verification emails"
+  type        = string
+}
