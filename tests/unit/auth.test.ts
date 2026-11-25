@@ -8,7 +8,7 @@ import { hash } from "bcryptjs";
 const nextAuthStub = vi.hoisted(() =>
   vi.fn(() => ({ handlers: {}, auth: vi.fn(), signIn: vi.fn(), signOut: vi.fn() }))
 );
-const usersMock = vi.hoisted(() => ({ getUserByEmail: vi.fn() }));
+const usersMock = vi.hoisted(() => ({ getUserByEmail: vi.fn(), upsertGoogleUser: vi.fn() }));
 
 vi.mock("next-auth", () => ({
   default: nextAuthStub,
@@ -20,6 +20,8 @@ vi.mock("@/lib/users", () => usersMock);
 
 import "@/lib/auth";
 import { authConfig } from "@/lib/auth.config";
+
+const lastConfig = () => (nextAuthStub.mock.calls as unknown as any[][]).at(-1)![0];
 
 // next-auth keeps the user's authorize() under provider.options
 const fullConfig = (nextAuthStub.mock.calls as unknown as any[][])[0][0];
@@ -37,7 +39,10 @@ async function storedUser(overrides: Record<string, unknown> = {}) {
   };
 }
 
-beforeEach(() => usersMock.getUserByEmail.mockReset());
+beforeEach(() => {
+  usersMock.getUserByEmail.mockReset();
+  usersMock.upsertGoogleUser.mockReset();
+});
 
 describe("authorize() for the credentials provider", () => {
   it("S1-UT-06 (a) missing or non-string fields are rejected", async () => {
@@ -96,5 +101,58 @@ describe("JWT and session callbacks", () => {
 
     const noUser = await callbacks.session({ session: { expires: "x" }, token });
     expect(noUser).toEqual({ expires: "x" });
+  });
+});
+
+describe("Sign in with Google", () => {
+  const signIn = fullConfig.callbacks.signIn as (a: unknown) => Promise<boolean>;
+  const jwt = fullConfig.callbacks.jwt as (a: any) => Promise<any>;
+
+  it("S2-GO-01 other providers pass through the signIn check", async () => {
+    expect(await signIn({ account: { provider: "credentials" } })).toBe(true);
+  });
+
+  it("S2-GO-02 Google is accepted only when Google verified the email", async () => {
+    const google = { provider: "google" };
+    expect(await signIn({ account: google, profile: { email: "a@b.co", email_verified: true } })).toBe(true);
+    expect(await signIn({ account: google, profile: { email: "a@b.co", email_verified: false } })).toBe(false);
+    expect(await signIn({ account: google, profile: { email_verified: true } })).toBe(false);
+    expect(await signIn({ account: google })).toBe(false);
+  });
+
+  it("S2-GO-03 first Google sign-in puts OUR user id in the token, not Google's", async () => {
+    usersMock.upsertGoogleUser.mockResolvedValue({ id: "our-id", email: "a@b.co", name: "A B" });
+    const token = await jwt({
+      token: {},
+      user: { id: "google-sub-123", email: "a@b.co", name: "A B" },
+      account: { provider: "google" },
+      profile: { email: "a@b.co", name: "A B" },
+    });
+    expect(usersMock.upsertGoogleUser).toHaveBeenCalledWith("a@b.co", "A B");
+    expect(token).toMatchObject({ id: "our-id", email: "a@b.co", name: "A B" });
+  });
+
+  it("S2-GO-04 later requests (no account) do not touch the database", async () => {
+    const token = await jwt({ token: { id: "our-id" } });
+    expect(token).toEqual({ id: "our-id" });
+    expect(usersMock.upsertGoogleUser).not.toHaveBeenCalled();
+  });
+
+  it("S2-GO-05 the Google provider exists only when its credentials are configured", async () => {
+    const names = () => lastConfig().providers.map((p: any) => p.id ?? p.options?.id ?? p.name);
+
+    vi.stubEnv("AUTH_GOOGLE_ID", "");
+    vi.stubEnv("AUTH_GOOGLE_SECRET", "");
+    vi.resetModules();
+    await import("@/lib/auth");
+    expect(lastConfig().providers).toHaveLength(1);
+
+    vi.stubEnv("AUTH_GOOGLE_ID", "id");
+    vi.stubEnv("AUTH_GOOGLE_SECRET", "secret");
+    vi.resetModules();
+    await import("@/lib/auth");
+    expect(lastConfig().providers).toHaveLength(2);
+    expect(names().map((n: string) => n.toLowerCase())).toContain("google");
+    vi.unstubAllEnvs();
   });
 });

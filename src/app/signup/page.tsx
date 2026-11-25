@@ -4,6 +4,7 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { GoogleButton } from "@/components/ui/GoogleButton";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -210,33 +211,7 @@ export default function SignupPage() {
             </button>
           </form>
 
-          {/* Divider */}
-          <div className="relative my-8">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-line"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-card text-mute">or</span>
-            </div>
-          </div>
-
-          {/* Social Signup Buttons (Optional - uncomment when configured) */}
-          {/* <div className="space-y-3">
-            <button
-              type="button"
-              onClick={() => signIn("google")}
-              className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-line rounded-lg hover:bg-bg transition-colors"
-            >
-              <span className="text-ink">Continue with Google</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => signIn("github")}
-              className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-line rounded-lg hover:bg-bg transition-colors"
-            >
-              <span className="text-ink">Continue with GitHub</span>
-            </button>
-          </div> */}
+          <GoogleButton />
 
           {/* Login Link */}
           <div className="mt-6 text-center text-sm">

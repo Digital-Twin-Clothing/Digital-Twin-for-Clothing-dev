@@ -73,3 +73,39 @@ export async function consumeVerificationToken(token: string): Promise<boolean> 
     throw e;
   }
 }
+
+/**
+ * Finds or creates the account for someone who signed in with Google, and
+ * returns its id. Google has already proven they own the email, so the account
+ * is marked verified.
+ *
+ * If a password signup for the same email was never verified, someone else may
+ * have created it with a password only they know. Linking it to the real owner
+ * would hand it to them, so that password is replaced with an unusable one.
+ */
+export async function upsertGoogleUser(email: string, name: string): Promise<{ id: string; email: string; name: string }> {
+  const key = userKey(email);
+  const unusablePassword = await hash(randomBytes(32).toString("hex"), 10);
+  const tx = db.transaction();
+  await tx.run();
+  try {
+    const [existing] = await tx.get(key);
+    if (existing) {
+      if (!existing.emailVerified) {
+        tx.save({ key, data: { ...existing, emailVerified: true, passwordHash: unusablePassword } });
+      }
+      await tx.commit();
+      return { id: existing.id, email: existing.email, name: existing.name };
+    }
+    const user = { id: randomUUID(), email: normalize(email), name: (name || email).trim() };
+    tx.insert({
+      key,
+      data: { ...user, passwordHash: unusablePassword, emailVerified: true, createdAt: new Date() },
+    });
+    await tx.commit();
+    return user;
+  } catch (e) {
+    await tx.rollback().catch(() => {});
+    throw e;
+  }
+}

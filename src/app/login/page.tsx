@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { GoogleButton } from "@/components/ui/GoogleButton";
 
 export default function LoginPage() {
   return (
@@ -18,7 +19,9 @@ function LoginForm() {
   const params = useSearchParams();
   const notice = params.get("verified")
     ? "Email verified. You can sign in now."
-    : params.get("verify_error")
+    : params.get("error") === "AccessDenied"
+      ? "Google sign-in was refused because Google has not verified that email address."
+      : params.get("verify_error")
       ? "That verification link is invalid or expired. Sign up again to get a new one."
       : "";
   const [formData, setFormData] = useState({
@@ -143,33 +146,7 @@ function LoginForm() {
             </button>
           </form>
 
-          {/* Divider */}
-          <div className="relative my-8">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-line"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-card text-mute">or</span>
-            </div>
-          </div>
-
-          {/* Social Login Buttons (Optional - uncomment when configured) */}
-          {/* <div className="space-y-3">
-            <button
-              type="button"
-              onClick={() => signIn("google")}
-              className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-line rounded-lg hover:bg-bg transition-colors"
-            >
-              <span className="text-ink">Continue with Google</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => signIn("github")}
-              className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-line rounded-lg hover:bg-bg transition-colors"
-            >
-              <span className="text-ink">Continue with GitHub</span>
-            </button>
-          </div> */}
+          <GoogleButton />
 
           {/* Sign Up Link */}
           <div className="mt-6 text-center text-sm">
