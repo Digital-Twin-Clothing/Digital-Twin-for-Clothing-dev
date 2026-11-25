@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
+import { MAX_HEIGHT_CM, MIN_HEIGHT_CM, toCm } from "@/lib/height";
 
 type PhotoSlot = "front" | "back" | "left" | "right";
 
@@ -43,6 +44,10 @@ export default function CreateAvatarPage() {
     left: null,
     right: null,
   });
+  const [heightUnit, setHeightUnit] = useState<"cm" | "ftin">("cm");
+  const [heightCmText, setHeightCmText] = useState("");
+  const [heightFt, setHeightFt] = useState("");
+  const [heightIn, setHeightIn] = useState("");
   const [uploading, setUploading] = useState(false);
   const [success, setSuccess] = useState(false);
 
@@ -84,10 +89,19 @@ export default function CreateAvatarPage() {
   };
 
   const allPhotosUploaded = Object.values(photos).every((photo) => photo !== null);
+  const heightCm =
+    heightUnit === "cm"
+      ? toCm({ unit: "cm", cm: heightCmText })
+      : toCm({ unit: "ftin", ft: heightFt, inch: heightIn });
+  const readyToSubmit = allPhotosUploaded && heightCm !== null;
 
   const handleSubmit = async () => {
     if (!allPhotosUploaded) {
       alert("Please upload all 4 photos");
+      return;
+    }
+    if (heightCm === null) {
+      alert(`Please enter your height (${MIN_HEIGHT_CM}-${MAX_HEIGHT_CM} cm)`);
       return;
     }
 
@@ -100,6 +114,7 @@ export default function CreateAvatarPage() {
         const formData = new FormData();
         formData.append("slot", slot);
         formData.append("batch", batch);
+        formData.append("heightCm", String(heightCm));
         formData.append("file", file);
         const res = await fetch("/api/avatar-photos", { method: "POST", body: formData });
         if (!res.ok) {
@@ -199,6 +214,73 @@ export default function CreateAvatarPage() {
             Upload 4 photos to create your digital twin. Make sure you're wearing fitted
             clothing and standing in good lighting.
           </p>
+        </div>
+
+        {/* Height: the 3D model scales your avatar to this */}
+        <div className="bg-card border border-line rounded-2xl p-6 mb-6">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-serif text-ink mb-1">Your height</h3>
+              <p className="text-xs text-mute">
+                We scale your avatar to your real height so clothes fit correctly.
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              {heightUnit === "cm" ? (
+                <label className="flex items-center gap-2 text-sm text-ink">
+                  <span className="sr-only">Height in centimetres</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min={MIN_HEIGHT_CM}
+                    max={MAX_HEIGHT_CM}
+                    step="0.1"
+                    value={heightCmText}
+                    onChange={(e) => setHeightCmText(e.target.value)}
+                    placeholder="175"
+                    aria-label="Height in centimetres"
+                    className="w-24 px-3 py-2 bg-bg border border-line rounded-lg text-ink focus:outline-none focus:ring-2 focus:ring-ink"
+                  />
+                  cm
+                </label>
+              ) : (
+                <div className="flex items-center gap-2 text-sm text-ink">
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={3}
+                    max={8}
+                    value={heightFt}
+                    onChange={(e) => setHeightFt(e.target.value)}
+                    placeholder="5"
+                    aria-label="Height, feet"
+                    className="w-16 px-3 py-2 bg-bg border border-line rounded-lg text-ink focus:outline-none focus:ring-2 focus:ring-ink"
+                  />
+                  ft
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    max={11.9}
+                    step="0.1"
+                    value={heightIn}
+                    onChange={(e) => setHeightIn(e.target.value)}
+                    placeholder="9"
+                    aria-label="Height, inches"
+                    className="w-16 px-3 py-2 bg-bg border border-line rounded-lg text-ink focus:outline-none focus:ring-2 focus:ring-ink"
+                  />
+                  in
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => setHeightUnit(heightUnit === "cm" ? "ftin" : "cm")}
+                className="text-sm text-mute underline underline-offset-4 hover:text-ink"
+              >
+                {heightUnit === "cm" ? "Use ft / in" : "Use cm"}
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Photo Upload Grid */}
@@ -308,9 +390,9 @@ export default function CreateAvatarPage() {
         <div className="flex justify-center">
           <button
             onClick={handleSubmit}
-            disabled={!allPhotosUploaded || uploading}
+            disabled={!readyToSubmit || uploading}
             className={`btn btn-primary ${
-              !allPhotosUploaded || uploading ? "opacity-50 cursor-not-allowed" : ""
+              !readyToSubmit || uploading ? "opacity-50 cursor-not-allowed" : ""
             }`}
           >
             {uploading ? (

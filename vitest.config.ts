@@ -16,6 +16,8 @@ export default defineConfig({
         "src/lib/auth.ts",
         "src/lib/auth.config.ts",
         "src/lib/users.ts",
+        "src/lib/height.ts",
+        "src/app/api/avatar-photos/route.ts",
         "src/lib/build-info.ts",
         "src/middleware.ts",
         "src/app/create-avatar/page.tsx",

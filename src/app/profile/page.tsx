@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { db } from "@/lib/db";
+import { formatHeight } from "@/lib/height";
 
 const SLOTS = [
   ["front", "Front"],
@@ -32,10 +33,16 @@ export default async function ProfilePage() {
             <span className="text-mute">Name</span>
             <span className="font-medium text-ink">{user.name}</span>
           </div>
-          <div className="flex justify-between py-3">
+          <div className={"flex justify-between py-3" + (typeof record?.heightCm === "number" ? " border-b border-line" : "")}>
             <span className="text-mute">Email</span>
             <span className="font-medium text-ink">{user.email}</span>
           </div>
+          {typeof record?.heightCm === "number" && (
+            <div className="flex justify-between py-3">
+              <span className="text-mute">Height</span>
+              <span className="font-medium text-ink">{formatHeight(record.heightCm)}</span>
+            </div>
+          )}
         </div>
 
         <div className="mb-6 flex items-end justify-between gap-4">
