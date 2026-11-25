@@ -18,4 +18,5 @@ data_vm_machine_type = "e2-micro"
 
 bucket_name = "digital-twin-clothing-dev-app-storage"
 
-site_url = "https://digitaltwinforclothing-878155745446.us-east4.run.app"
+site_url         = "https://digitaltwinforclothing-878155745446.us-east4.run.app"
+google_client_id = "878155745446-b7ah5bedg15crtkdakkqmuebv78js452.apps.googleusercontent.com"

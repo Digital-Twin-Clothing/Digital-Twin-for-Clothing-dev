@@ -48,6 +48,7 @@ module "app" {
     google_secret_manager_secret.auth_secret.secret_id,
     google_secret_manager_secret.db_password.secret_id,
     google_secret_manager_secret.resend_api_key.secret_id,
+    google_secret_manager_secret.google_client_secret.secret_id,
   ]
 
   project_id               = var.project_id
@@ -55,10 +56,14 @@ module "app" {
   site_url                 = var.site_url
   resend_api_key_secret_id = google_secret_manager_secret.resend_api_key.secret_id
 
+  google_client_id               = var.google_client_id
+  google_client_secret_secret_id = google_secret_manager_secret.google_client_secret.secret_id
+
   # The app must not start before its secrets have a value.
   depends_on = [
     google_secret_manager_secret_version.auth_secret,
     google_secret_manager_secret_version.resend_api_key,
+    google_secret_manager_secret_version.google_client_secret,
   ]
 }
 
