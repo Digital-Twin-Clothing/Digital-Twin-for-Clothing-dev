@@ -13,8 +13,10 @@ This folder holds the ML1 code for the Twin Worker: four photos (front, back, le
 | One JSON file per photo (`front_body_data.json`, and so on) | Working |
 | Process all four views in one run | Working (overlay renderer disabled; it crashed on Windows) |
 | Saved betas to T-pose body, exported as OBJ and GLB | Working |
-| Average the four views into one set of betas | In progress |
-| Scale to user height, measurements, `body.json` | Next |
+| Average the four views into one set of betas (`fuse_views.py`) | Working |
+| Measure mesh height and scale the body to the user's height | Working (height is hard-coded for now) |
+| Waist and hip measurements, `body.json` | In progress |
+| One command per job folder for the API (`create_twin.py`) | Next |
 
 ## Files
 
@@ -22,6 +24,7 @@ This folder holds the ML1 code for the Twin Worker: four photos (front, back, le
 |---|---|
 | `cameraHMR_ml1_changes.patch` | Our changes to CameraHMR: person selection, per-image JSON, Windows fixes |
 | `load_body_data.py` | Loads saved betas from JSON, builds the SMPL-X body, exports OBJ and GLB |
+| `fuse_views.py` | Averages the four views' betas, builds one body, scales it to the user's height, exports OBJ and GLB |
 
 ## Setup
 
@@ -34,6 +37,24 @@ This folder holds the ML1 code for the Twin Worker: four photos (front, back, le
    git apply ../Digital-Twin-for-Clothing-dev/ml1/cameraHMR_ml1_changes.patch
    ```
 3. Copy `load_body_data.py` into the CameraHMR folder.
+
+## Model files (not in GitHub)
+
+CameraHMR needs about 12 GB of model files in its `data/` folder. They are not in this repository: GitHub refuses files over 100 MB, and the SMPL-X and CameraHMR licenses do not allow us to redistribute them. Each person downloads them under their own free account:
+
+1. Register at https://camerahmr.is.tue.mpg.de/ and https://smpl-x.is.tue.mpg.de/
+2. From the CameraHMR folder, run `bash scripts/fetch_demo_data.sh` and `bash scripts/fetch_demo_data_bedlam2.sh` (Git Bash on Windows; we use the BEDLAM2 checkpoint `bedlam_v1_v2.ckpt`) and sign in when asked.
+3. The BEDLAM2 script also downloads `data/models/smplx_lockedhead_20230207.zip`. Unzip it so this file exists:
+   `data/models/smplx_neutral_head/models_lockedhead/smplx/SMPLX_NEUTRAL.npz`
+
+Expected layout:
+
+```
+data/
+  smpl_mean_params.npz
+  pretrained-models/  (CameraHMR checkpoints and the Detectron2 model, about 11 GB)
+  models/smplx_neutral_head/models_lockedhead/smplx/SMPLX_NEUTRAL.npz
+```
 
 ## Run
 
