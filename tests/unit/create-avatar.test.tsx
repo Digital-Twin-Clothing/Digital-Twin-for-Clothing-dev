@@ -102,6 +102,9 @@ describe("CreateAvatarPage", () => {
 
     fireEvent.change(slotInputs(container)[0], { target: { files: [photo("right.jpg")] } });
     await screen.findByAltText("Right Side preview");
+    // all 4 photos are in, but the height is still missing
+    expect((createButton() as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText("Height in centimetres"), { target: { value: "175" } });
     expect((createButton() as HTMLButtonElement).disabled).toBe(false);
 
     fireEvent.click(createButton());
@@ -114,6 +117,36 @@ describe("CreateAvatarPage", () => {
     const bodies = fetchSpy.mock.calls.map((c: any[]) => c[1].body as FormData);
     expect(bodies.map((b) => b.get("slot")).sort()).toEqual(["back", "front", "left", "right"]);
     expect(new Set(bodies.map((b) => b.get("batch"))).size).toBe(1);
+    expect(bodies.every((b) => b.get("heightCm") === "175")).toBe(true);
+  });
+
+  it("S2-HT-01 height in feet and inches is converted to centimetres", async () => {
+    const { container } = render(<CreateAvatarPage />);
+    for (const [i, name] of ["Front View", "Back View", "Left Side", "Right Side"].entries()) {
+      fireEvent.change(slotInputs(container)[0], { target: { files: [photo(`p${i}.jpg`)] } });
+      await screen.findByAltText(`${name} preview`);
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Use ft / in" }));
+    fireEvent.change(screen.getByLabelText("Height, feet"), { target: { value: "5" } });
+    fireEvent.change(screen.getByLabelText("Height, inches"), { target: { value: "9" } });
+    fireEvent.click(createButton());
+    await screen.findByText("Photos uploaded successfully!", {}, { timeout: 4000 });
+    expect((fetchSpy.mock.calls[0][1].body as FormData).get("heightCm")).toBe("175.3");
+  });
+
+  it("S2-HT-02 an impossible height keeps the button disabled", async () => {
+    const { container } = render(<CreateAvatarPage />);
+    for (const [i, name] of ["Front View", "Back View", "Left Side", "Right Side"].entries()) {
+      fireEvent.change(slotInputs(container)[0], { target: { files: [photo(`p${i}.jpg`)] } });
+      await screen.findByAltText(`${name} preview`);
+    }
+    const input = screen.getByLabelText("Height in centimetres");
+    for (const bad of ["", "50", "99.9", "251", "abc"]) {
+      fireEvent.change(input, { target: { value: bad } });
+      expect((createButton() as HTMLButtonElement).disabled).toBe(true);
+    }
+    fireEvent.change(input, { target: { value: "100" } }); // lowest allowed
+    expect((createButton() as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("S1-UT-12 (d) server rejects a photo: the error is shown and success is not", async () => {
@@ -123,6 +156,7 @@ describe("CreateAvatarPage", () => {
       fireEvent.change(slotInputs(container)[0], { target: { files: [photo(`p${i}.jpg`)] } });
       await screen.findByAltText(`${name} preview`);
     }
+    fireEvent.change(screen.getByLabelText("Height in centimetres"), { target: { value: "175" } });
     fireEvent.click(createButton());
     await vi.waitFor(() => expect(alertSpy).toHaveBeenCalledWith("front: image must be under 10MB"));
     expect(screen.queryByText("Photos uploaded successfully!")).toBeNull();
