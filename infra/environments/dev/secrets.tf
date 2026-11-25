@@ -36,3 +36,25 @@ resource "google_secret_manager_secret_version" "db_password" {
   secret      = google_secret_manager_secret.db_password.id
   secret_data = random_password.db_password.result
 }
+
+# API key of the email service (Resend) that sends the verification links.
+# Terraform creates the secret with a placeholder value only. The real key is
+# added by hand and never goes into the code or the Terraform state:
+#   printf '%s' 're_xxxxxxxx' | gcloud secrets versions add resend-api-key-dev --data-file=-
+# Terraform ignores later changes to the value, so it will not overwrite the real key.
+resource "google_secret_manager_secret" "resend_api_key" {
+  secret_id = "resend-api-key-${var.environment}"
+
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_version" "resend_api_key" {
+  secret      = google_secret_manager_secret.resend_api_key.id
+  secret_data = "placeholder-replace-with-real-key"
+
+  lifecycle {
+    ignore_changes = [secret_data]
+  }
+}

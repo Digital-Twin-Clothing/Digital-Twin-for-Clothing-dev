@@ -79,6 +79,17 @@ resource "google_project_iam_member" "deployer" {
   member  = "serviceAccount:${google_service_account.deployer.email}"
 }
 
+# The app stores users and photo records in Firestore (Datastore mode). This is a
+# project-wide role, which the pipeline account is not allowed to grant, so it is
+# granted here by the project Owner who runs bootstrap.
+resource "google_project_iam_member" "app_firestore" {
+  project = var.project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${var.app_runtime_account_email}"
+
+  depends_on = [google_project_service.apis]
+}
+
 # GitHub Actions runs from the dev repository may act as the deployer account.
 resource "google_service_account_iam_member" "github_dev_repo" {
   service_account_id = google_service_account.deployer.name
