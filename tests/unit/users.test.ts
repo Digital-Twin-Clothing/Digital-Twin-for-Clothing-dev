@@ -11,7 +11,13 @@ const dbMock = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/db", () => ({ db: dbMock }));
 
-import { createUser, getUserByEmail, createVerificationToken, consumeVerificationToken } from "@/lib/users";
+import {
+  createUser,
+  getUserByEmail,
+  createVerificationToken,
+  consumeVerificationToken,
+  upsertGoogleUser,
+} from "@/lib/users";
 
 beforeEach(() => {
   Object.values(dbMock).forEach((m) => "mockClear" in m && m.mockClear());
@@ -88,5 +94,52 @@ describe("verification tokens", () => {
     const tx = txWith(undefined, undefined);
     expect(await consumeVerificationToken("t")).toBe(false);
     expect(tx.rollback).toHaveBeenCalled();
+  });
+});
+
+describe("upsertGoogleUser (sign in with Google)", () => {
+  function tx(existing: unknown) {
+    const t = {
+      run: vi.fn(),
+      get: vi.fn().mockResolvedValue([existing]),
+      save: vi.fn(),
+      insert: vi.fn(),
+      commit: vi.fn(),
+      rollback: vi.fn().mockResolvedValue(undefined),
+    };
+    dbMock.transaction.mockReturnValue(t);
+    return t;
+  }
+
+  it("a new Google user gets a verified account with a password nobody knows", async () => {
+    const t = tx(undefined);
+    const user = await upsertGoogleUser("New.Person@Gmail.com", "New Person");
+    expect(user).toMatchObject({ email: "new.person@gmail.com", name: "New Person" });
+    const saved = t.insert.mock.calls[0][0];
+    expect(saved.key).toEqual(["User", "new.person@gmail.com"]);
+    expect(saved.data.emailVerified).toBe(true);
+    expect(saved.data.passwordHash.startsWith("$2")).toBe(true);
+  });
+
+  it("an existing verified account is reused as is, keeping its password", async () => {
+    const t = tx({ id: "u1", email: "a@b.co", name: "A", passwordHash: "keep", emailVerified: true });
+    expect(await upsertGoogleUser("a@b.co", "A")).toEqual({ id: "u1", email: "a@b.co", name: "A" });
+    expect(t.save).not.toHaveBeenCalled();
+    expect(t.insert).not.toHaveBeenCalled();
+  });
+
+  it("an unverified password signup is verified AND its password is replaced, so a squatter cannot take it over", async () => {
+    const t = tx({ id: "u2", email: "a@b.co", name: "A", passwordHash: "squatter-hash", emailVerified: false });
+    expect(await upsertGoogleUser("a@b.co", "A")).toMatchObject({ id: "u2" });
+    const saved = t.save.mock.calls[0][0].data;
+    expect(saved.emailVerified).toBe(true);
+    expect(saved.passwordHash).not.toBe("squatter-hash");
+  });
+
+  it("rolls back and rethrows when the database fails", async () => {
+    const t = tx(undefined);
+    t.commit.mockRejectedValue(new Error("db down"));
+    await expect(upsertGoogleUser("a@b.co", "A")).rejects.toThrow("db down");
+    expect(t.rollback).toHaveBeenCalled();
   });
 });
